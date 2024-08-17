@@ -1,0 +1,334 @@
+---
+title: 'STAT6180: Assignment (Semester 2)'
+author: "Josiah Jackson"
+date: "2023-10-09"
+output:
+  pdf_document:
+    latex_engine: xelatex
+    df_print: paged
+---
+
+## Question 1
+
+**a) Produce a plot and a correlation matrix of the data. Comment on possible relationships between the response and predictors and relationships between the predictors themselves**
+
+```{r}
+# Import data and produce plot
+traffic <- read.csv("data/traffic.csv", header = TRUE)
+pairs(traffic, panel = panel.smooth)
+```
+
+**Regression Model:** $$
+\hat{spi} = 62.8071 - 2.175 \times transport - 2.4097 \times road + 4.256 \times weather - 3.6145 \times fuel - 0.1358 \times wind
+$$
+
+**Comments***:* We can observe a high correlation between spi and the variables transport and weather
+
+```{r}
+cor(traffic)
+```
+
+**Comments***:* The correlation matrix shows high positive correlation between spi and weather, and moderate negative correlation with variables transport and road. Between the predictors, there is only a small positive correlation between transport and fuel.
+
+\
+**b) Fit a model using all the predictors to explain the spi response. Then, using the full model, estimate the impact of weather on spi. Do this by producing a 95% confidence interval that quantifies the change in spi for every one index value increase of weather and comment.**
+
+```{r}
+# Fit model using all predictors
+spi.lm <- lm(spi ~ ., data = traffic)
+summary(spi.lm)
+```
+
+```{r}
+# Confidence interval to estimate the impact of weather on spi
+b_humidity <- spi.lm$coefficients[4]
+n <- nrow(traffic)
+tquant <- qt(0.975, n - 2)
+se_b_humidity <- summary(spi.lm)$coefficients[,2][4]
+
+lower <- b_humidity - tquant * se_b_humidity
+upper <- b_humidity + tquant * se_b_humidity
+
+paste(lower, upper)
+```
+
+**Confidence Interval:** $$
+\beta weather \pm t \times s.e.(\beta weather) = 4.2456 \pm 2.0003 \times 0.4473 = (3.35096433921561, 5.14032296064003)
+$$
+
+**Comments***:* For each index value that weather increases, it is expected that the spi index value will increase between 3.351 and 5.140 values.
+
+**\
+c) Conduct an F-test for the overall regression (i.e. is there any relationship between the response and the predictors)**
+
+```{r fig.height=3.8, fig.width=6.5}
+# Check assumptions
+par(mfrow = c(1, 2))
+plot(spi.lm, which = 1:2)
+```
+
+**Comments***:* The Residuals vs Fitted plot contains no discernible pattern, and the Normal Q-Q plot demonstrates a visible linear trend, indicating that the residuals are close to normally distributed. Constant variance and normality assumptions are therefore satisfied.
+
+**Multiple Regression Model:** $$
+\hat{spi} = \beta_0  + \beta_1  \times transport + \beta_2  \times road + \beta_3  \times weather + \beta_4  \times fuel + \beta_5  \times wind + \epsilon
+$$
+
+**Parameters:** $$
+\hat{spi} \text{ is the dependent variable}
+$$ $$
+\beta_0 \space \text{is the intercept}
+$$ $$
+\beta_1, \beta_2, \beta_3, \beta_4, \beta_5 \text{ are representative of the coefficients of the independent variables}
+$$ $$
+\text{Independent variables: transport, road, weather, fuel, wind}
+$$ $$
+\varepsilon : \text{residuals/error term}
+$$
+
+**Hypotheses:** $$
+H_0: \beta_0 = \beta_1 = \beta_2 = \beta_3 = \beta_4 = \beta_5 = 0
+$$ $$
+H_1: \text{not all } \beta_i \text{ are equal}
+$$
+
+```{r}
+# ANOVA table
+spi.aov <- anova(spi.lm)
+spi.aov
+```
+
+```{r}
+# Create reduced overall ANOVA table
+reg_SS <- sum(spi.aov$`Sum Sq`)
+reg_df <- 5
+reg_MS <- reg_SS / reg_df
+res_SS <- spi.aov$`Sum Sq`[6]
+res_df <- 56
+res_MS <- res_SS / res_df
+Fobs <- reg_MS / res_MS
+Pval <- pf(Fobs, reg_df, res_df, lower.tail = FALSE)
+
+Pr_F <- 0
+if (Pval < 0.000000001) {
+  Pr_F = 0
+} else {
+  Pr_F = Pval
+}
+
+reduced_aov <- matrix(c(reg_df, reg_SS, reg_MS, Fobs, Pr_F, 
+                        res_df, res_SS, res_MS, NaN, NaN), ncol=5, byrow=TRUE)
+colnames(reduced_aov) <- c('Df', 'Sum Sq', 'Mean Sq', 'F Value', 'Pr(>F)')
+rownames(reduced_aov) <- c('Regression', 'Residuals')
+
+reduced_aov
+```
+
+$$
+\text{Test Statistic}: F_{obs} = \frac{MS_{Reg}}{MS_{Res}} = \frac{4241.231}{98.261} = 43.163\
+$$ $$
+\text{Null Distribution: The null distribution for the test statistic is } F_{5, 56}\
+$$ $$
+\text{P-Value}: P(F_{5,56} = 43.16294) = 0 = 5.256094 \times 10^-18 < 0.05\
+$$
+
+**Conclusion***:* Since the P-Value is significantly smaller than the level of significance, there is enough evidence to reject H~0~. This means that there is a significant linear relationship between spi and at least one of the five predictor variables
+
+\
+**d) Validate the full model and comment on whether the full regression model is appropriate to explain the spi**
+
+```{r}
+par(mfrow = c(2, 2))
+plot(spi.lm, which = 1:2)
+plot(resid(spi.lm) ~ transport, data = traffic, xlab = "transport", ylab = "Residuals")
+plot(resid(spi.lm) ~ road, data = traffic, xlab = "road", ylab = "Residuals")
+```
+
+```{r}
+par(mfrow = c(2, 2))
+plot(resid(spi.lm) ~ weather, data = traffic, xlab = "weather", ylab = "Residuals")
+plot(resid(spi.lm) ~ fuel, data = traffic, xlab = "fuel", ylab = "Residuals")
+plot(resid(spi.lm) ~ wind, data = traffic, xlab = "wind", ylab = "Residuals")
+```
+
+```{r}
+print(spi.aov)
+```
+
+**Comments**: Both the fuel and wind predictor variables both have P-Values of over 0.05, and are therefore insignificant. This means that it is not appropriate to use the full model to explain the spi. A new regression model without the fuel and wind variables will be used to proceed
+
+```{r}
+spi.lm2 <- lm(spi ~ transport + road + weather, data = traffic)
+spi.aov2 <- anova(spi.lm2)
+spi.aov2
+```
+
+**Comments**: After removing the fuel and wind predictor variables, all the predictors in the new model are significant. This model is more appropriate to explain the spi.
+
+\
+**e) Find the R^2^ and comment on what it means in the context of this dataset**\
+
+```{r}
+summary(spi.lm)
+```
+
+$$
+ R^2 = \frac{SS_{Regression}}{SS_{Total}} = \frac{15703.5}{21206.1} = 0.7405
+$$
+
+**Comments**: This significantly high R-squared value shows that the predictor variables in the original model contribute significantly to the spi. It means that 74.05% of the variation in the data set is explained by the full linear regression model.
+
+\
+**f) Using model selection procedures discussed in the unit, find the best multiple regression model that explains the data. State the final fitted regression model.**\
+
+```{r}
+summary(spi.lm)$coefficients
+```
+
+```{r}
+summary(spi.lm2)$coefficients
+```
+
+```{r}
+par(mfrow = c(1, 2))
+plot(x=predict(spi.lm), y=traffic$spi,
+     xlab='Predicted Values',
+     ylab='Actual Values',
+     main='Original Model')
+abline(a=0, b=1)
+
+plot(x=predict(spi.lm2), y=traffic$spi,
+     xlab='Predicted Values',
+     ylab='Actual Values',
+     main='Updated Model')
+abline(a=0, b=1)
+```
+
+**Comments**: by comparing the original multiple regression model with the updated one, it is clear that the current updated one is the best model to explain the data. This is because all the predictor variables P-values are significantly smaller than 0.05. The Predicted vs Actual Value plots also show a line of better fit for the updated model.
+
+**\
+g) Comment on the R^2^ and adjusted R^2^ in the full and final model you chose in part f. In particular explain why those goodness of fitness measures change**\
+
+```{r}
+summary(spi.lm2)
+```
+
+$$
+ R^2 = \frac{SS_{Regression}}{SS_{Total}} = \frac{15387.2}{21206.1} = 0.7405
+$$
+
+**Comments**: This significantly high R-squared value shows that the predictor variables in the new model (transport, road and weather) contribute significantly to the spi. The adjusted R-squared value is extremely similar (0.7114) compared to the original model's (0.7174), meaning it is not too evident from these values which model is more reliable. However, since higher R-squared values are not always indicative of a better model, and the prediction vs actual value graphs show a better line of fit on the newer model, it is safe to assume that this model is more reliable than the original
+
+## Question 2
+
+**a) For this study, is the design balanced or unbalanced?**
+
+```{r}
+# Import data and check number of replicates across all the levels factors
+cake <- read.csv("data/cake.csv", header = TRUE, stringsAsFactors=TRUE)
+table(cake[, c("Temp", "Recipe")])
+```
+
+**Comments:** From the above results, we can see that design is balanced as it has an equal number of replicates for each combination of levels of the two factors
+
+**b) Construct two different preliminary graphs that investigate different features of the data and comment**
+
+```{r}
+# Boxplot
+boxplot(Angle ~ Temp + Recipe, data = cake)
+```
+
+**Comments:** The boxplot shows mostly somewhat equal variance among levels, but there are some potential outliers. Will need to calculate the standard deviation for each level to compare.
+
+```{r}
+# Check 
+tempVals <- unique(cake$Temp)
+recipeVals <- unique(cake$Recipe)
+for (temp in tempVals) {
+  for (recipe in recipeVals) {
+    col <- cake[cake$Temp == temp & cake$Recipe == recipe,]
+    print(sd(col$Angle))
+  }
+}
+```
+
+**Comments:** the largest standard deviation is less than twice the smallest standard deviation, so the equal variance assumption is valid.
+
+```{r}
+# Interaction plots
+par(mfrow = c(1, 2))
+with(cake, interaction.plot(Temp, Recipe, Angle))
+with(cake, interaction.plot(Recipe, Temp, Angle))
+```
+
+**Comments:** both interaction plots show non-parallel lines for the means of each group at different levels of the independent variables, which indicates an interaction effect between the two independent variables.
+
+**c) Write down the full mathematical model for this situation, defining all appropriate parameters**
+
+The full Two-Way ANOVA model with interaction is:
+
+$$
+Y_{ijk} = \mu \space + \alpha_i \space + \beta_j \space + \gamma_{ij} + \epsilon_{ijk},
+$$
+
+with the parameters as:\
+$$Y_{ijk}: \text{the angle at which the cake broke}$$ $$\alpha_i: \text{The Recipe effect, there are two levels - A, B, C}$$ $$\beta_j: \text{The Temp effect, there are 6 levels - 175C, 185C, 195C, 205C, 215C, 225C}$$ $$\gamma_{ij}: \text{interaction effect between Recipe and Temp}$$ $$\epsilon_{ijk}: \text{the unexplained variation}$$
+
+**d) Analyse the data to study the effect of Temp and Recipe on breaking Angle of cake at 5% significance level**
+
+**Hypotheses:**
+
+$$
+H_0: \gamma_{ij } = 0 \space \text{for all } i, \space j
+$$ $$
+H_1: \text{at least one } \gamma_{ij} \neq 0
+$$
+
+```{r}
+# Fit the interaction model
+cake.int <- lm(Angle ~ Recipe * Temp, data = cake)
+
+# Validate interaction model with diagnostic plots
+par(mfrow = c(1, 2))
+plot(cake.int, which = 1:2)
+```
+
+**Comments:** the residuals are close to linear in the Normal QQ plot, so the normality assumption should be valid. The residual plot shows an equal spread so the constant variance assumption should also be valid.
+
+```{r}
+# Run two-way ANOVA
+print(anova(cake.int))
+summary(cake.int)
+```
+
+**Comments:** we can see that the interaction terms are insignificant since the F-test of the interaction term has a P-Value of 0.776 (3 d.p.). This means they can be removed from the model and we have not yet reached our final model.
+
+**e) Repeat the above test analysis for the main effects**
+
+```{r}
+# Update model to only use main effects
+cake.int2 = update(cake.int, . ~ . - Recipe:Temp)
+summary(cake.int2)$coefficients
+```
+
+```{r}
+# Validate interaction model with diagnostic plots
+par(mfrow = c(1, 2))
+plot(cake.int2, which = 1:2)
+```
+
+**Comments:** the residuals are close to linear in the Normal QQ plot, so the normality assumption should be valid. The residual plot shows an equal spread so the constant variance assumption should also be valid.
+
+```{r}
+# Run Two-Way ANOVA
+print(anova(cake.int2))
+```
+
+**Comments:** we can see that the main effects are significant as they have respective P-values of 0.0140 and 0.0001 (4 d.p.). This means that they cannot be removed and that we have reached our final model.
+
+**f) State your conclusions about the effect of Temp and Recipe on the Angle response**
+
+Overall, the effect of the *recipe* of the cake on the *angle* at which the cake breaks does not depend on the *temperature* at which the cake was baked. Neither does the effect of the *temperature* at which the cake was baked depend on the *recipe* of the cake. However, both the *temperature* and the *recipe* variables do have a significant effect on the *angle* at which the cake breaks.
+
+**Also uploaded to:**
+
+<https://github.com/MQ-STAT2170-6180-Assignment-S2-2023/assignment-s2-2023-jijackson111/blob/main/Assignment-45948763.pdf>
